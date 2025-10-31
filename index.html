@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Avaliação de Dor Crônica</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://unpkg.com/recharts@2.5.0/dist/Recharts.js"></script>
+    <script src="https://unpkg.com/lucide-react@0.263.1/dist/umd/lucide-react.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        const { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } = Recharts;
+        const { ChevronLeft, ChevronRight, Download, FileText } = lucide;
+
+        const categories = [
+          {
+            id: 'nociceptivo',
+            title: 'Mecanismo Nociceptivo',
+            description: 'Dor relacionada a lesão tecidual ativa ou ameaça de lesão (ex: inflamação, trauma, sobrecarga mecânica)'
+          },
+          {
+            id: 'neuropatico',
+            title: 'Mecanismo Neuropático',
+            description: 'Dor causada por lesão ou doença do sistema nervoso (ex: formigamento, queimação, choque elétrico)'
+          },
+          {
+            id: 'nociplastico',
+            title: 'Mecanismo Nociplástico',
+            description: 'Dor por alteração no processamento da dor sem lesão clara (ex: sensibilização central, fibromialgia)'
+          },
+          {
+            id: 'sensoriomotores',
+            title: 'Sensório-Motores',
+            description: 'Fatores relacionados a movimento, postura, coordenação e função sensorial'
+          },
+          {
+            id: 'emocionais',
+            title: 'Emocionais',
+            description: 'Ansiedade, depressão, medo, estresse emocional e humor'
+          },
+          {
+            id: 'cognitivos',
+            title: 'Cognitivos',
+            description: 'Crenças sobre dor, catastrofização, expectativas negativas e pensamentos disfuncionais'
+          },
+          {
+            id: 'socioambientais',
+            title: 'Socioambientais',
+            description: 'Suporte social, ambiente de trabalho, questões familiares e contexto social'
+          },
+          {
+            id: 'estiloVida',
+            title: 'Estilo de Vida',
+            description: 'Qualidade do sono, alimentação, atividade física e hábitos diários'
+          },
+          {
+            id: 'fisicos',
+            title: 'Físicos',
+            description: 'Condicionamento físico, força muscular, flexibilidade e capacidade funcional'
+          },
+          {
+            id: 'patoanatomicos',
+            title: 'Patoanatômicos',
+            description: 'Alterações estruturais visíveis em exames de imagem (raio-x, ressonância, tomografia)'
+          },
+          {
+            id: 'saudeGeral',
+            title: 'Saúde Geral',
+            description: 'Condições médicas gerais, comorbidades e estado de saúde global'
+          }
+        ];
+
+        function PainAssessmentApp() {
+          const [currentStep, setCurrentStep] = useState(0);
+          const [scores, setScores] = useState({});
+          const [patientName, setPatientName] = useState('');
+          const [assessmentDate, setAssessmentDate] = useState(new Date().toISOString().split('T')[0]);
+          const [clinicalNotes, setClinicalNotes] = useState('');
+
+          useEffect(() => {
+            const saved = localStorage.getItem('painAssessment');
+            if (saved) {
+              const data = JSON.parse(saved);
+              setScores(data.scores || {});
+              setPatientName(data.patientName || '');
+              setAssessmentDate(data.assessmentDate || new Date().toISOString().split('T')[0]);
+              setClinicalNotes(data.clinicalNotes || '');
+            }
+          }, []);
+
+          useEffect(() => {
+            const data = { scores, patientName, assessmentDate, clinicalNotes };
+            localStorage.setItem('painAssessment', JSON.stringify(data));
+          }, [scores, patientName, assessmentDate, clinicalNotes]);
+
+          const handleScoreChange = (categoryId, value) => {
+            setScores({ ...scores, [categoryId]: value });
+          };
+
+          const canGoNext = () => {
+            if (currentStep < categories.length) {
+              return scores[categories[currentStep].id] !== undefined;
+            }
+            return true;
+          };
+
+          const goNext = () => {
+            if (canGoNext() && currentStep < categories.length) {
+              setCurrentStep(currentStep + 1);
+            }
+          };
+
+          const goPrevious = () => {
+            if (currentStep > 0) {
+              setCurrentStep(currentStep - 1);
+            }
+          };
+
+          const generatePDF = async () => {
+            const { jsPDF } = window.jspdf;
+            
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const pageWidth = pdf.internal.pageSize.getWidth();
+            
+            pdf.setFontSize(18);
+            pdf.setTextColor(30, 58, 138);
+            pdf.text('Avaliação Baseada em Mecanismo', pageWidth / 2, 20, { align: 'center' });
+            
+            pdf.setFontSize(12);
+            pdf.setTextColor(0, 0, 0);
+            pdf.text(`Paciente: ${patientName || 'Não informado'}`, 20, 35);
+            pdf.text(`Data da Avaliação: ${new Date(assessmentDate).toLocaleDateString('pt-BR')}`, 20, 42);
+            
+            const chartElement = document.getElementById('radar-chart');
+            if (chartElement) {
+              const canvas = await html2canvas(chartElement, { scale: 2 });
+              const imgData = canvas.toDataURL('image/png');
+              pdf.addImage(imgData, 'PNG', 20, 50, 170, 120);
+            }
+            
+            pdf.setFontSize(14);
+            pdf.setTextColor(30, 58, 138);
+            pdf.text('Avaliação Clínica:', 20, 180);
+            
+            pdf.setFontSize(11);
+            pdf.setTextColor(0, 0, 0);
+            const splitText = pdf.splitTextToSize(clinicalNotes || 'Nenhuma avaliação registrada.', pageWidth - 40);
+            pdf.text(splitText, 20, 190);
+            
+            const footerY = pdf.internal.pageSize.getHeight() - 20;
+            pdf.setFontSize(10);
+            pdf.setTextColor(100, 100, 100);
+            pdf.text('Gerado em: ' + new Date().toLocaleString('pt-BR'), pageWidth / 2, footerY, { align: 'center' });
+            
+            pdf.save(`avaliacao-dor-${patientName.replace(/\s+/g, '-') || 'paciente'}-${assessmentDate}.pdf`);
+          };
+
+          const radarData = categories.map(cat => ({
+            category: cat.title.split(' ').slice(-1)[0],
+            value: scores[cat.id] || 0,
+            fullMark: 10
+          }));
+
+          const progress = ((currentStep + 1) / (categories.length + 1)) * 100;
+
+          if (currentStep < categories.length) {
+            const category = categories[currentStep];
+            const currentScore = scores[category.id] ?? 5;
+
+            return (
+              <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 p-4">
+                <div className="max-w-2xl mx-auto">
+                  <div className="mb-8">
+                    <div className="flex justify-between text-sm text-gray-600 mb-2">
+                      <span>Etapa {currentStep + 1} de {categories.length}</span>
+                      <span>{Math.round(progress)}%</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div 
+                        className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${progress}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-2xl shadow-xl p-8 mb-6">
+                    <div className="mb-8">
+                      <h2 className="text-3xl font-bold text-gray-800 mb-3">{category.title}</h2>
+                      <p className="text-gray-600 leading-relaxed">{category.description}</p>
+                    </div>
+
+                    <div className="mb-8">
+                      <div className="flex justify-between items-center mb-4">
+                        <span className="text-sm font-medium text-gray-500">Intensidade</span>
+                        <span className="text-4xl font-bold text-blue-600">{currentScore}</span>
+                      </div>
+                      
+                      <input
+                        type="range"
+                        min="0"
+                        max="10"
+                        step="0.5"
+                        value={currentScore}
+                        onChange={(e) => handleScoreChange(category.id, parseFloat(e.target.value))}
+                        className="w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                        style={{
+                          background: `linear-gradient(to right, #2563eb 0%, #2563eb ${currentScore * 10}%, #e5e7eb ${currentScore * 10}%, #e5e7eb 100%)`
+                        }}
+                      />
+                      
+                      <div className="flex justify-between text-xs text-gray-500 mt-2">
+                        <span>0 - Nenhuma influência</span>
+                        <span>10 - Máxima influência</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between">
+                    <button
+                      onClick={goPrevious}
+                      disabled={currentStep === 0}
+                      className="flex items-center gap-2 px-6 py-3 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <ChevronLeft size={20} />
+                      Anterior
+                    </button>
+                    
+                    <button
+                      onClick={goNext}
+                      disabled={!canGoNext()}
+                      className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      Próximo
+                      <ChevronRight size={20} />
+                    </button>
+                  </div>
+                </div>
+
+                <style>{`
+                  .slider::-webkit-slider-thumb {
+                    appearance: none;
+                    width: 24px;
+                    height: 24px;
+                    background: #2563eb;
+                    cursor: pointer;
+                    border-radius: 50%;
+                    border: 3px solid white;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+                  }
+                  .slider::-moz-range-thumb {
+                    width: 24px;
+                    height: 24px;
+                    background: #2563eb;
+                    cursor: pointer;
+                    border-radius: 50%;
+                    border: 3px solid white;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+                  }
+                `}</style>
+              </div>
+            );
+          }
+
+          return (
+            <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 p-4">
+              <div className="max-w-5xl mx-auto">
+                <div className="bg-white rounded-2xl shadow-xl p-8">
+                  <div className="flex items-center gap-3 mb-6">
+                    <FileText className="text-blue-600" size={32} />
+                    <h1 className="text-3xl font-bold text-gray-800">Resultado da Avaliação</h1>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 mb-8">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Nome do Paciente</label>
+                      <input
+                        type="text"
+                        value={patientName}
+                        onChange={(e) => setPatientName(e.target.value)}
+                        placeholder="Digite o nome do paciente"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Data da Avaliação</label>
+                      <input
+                        type="date"
+                        value={assessmentDate}
+                        onChange={(e) => setAssessmentDate(e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                  </div>
+
+                  <div id="radar-chart" className="bg-gray-50 rounded-xl p-6 mb-8">
+                    <h3 className="text-xl font-semibold text-gray-800 mb-4 text-center">Gráfico de Avaliação</h3>
+                    <ResponsiveContainer width="100%" height={400}>
+                      <RadarChart data={radarData}>
+                        <PolarGrid stroke="#cbd5e1" />
+                        <PolarAngleAxis 
+                          dataKey="category" 
+                          tick={{ fill: '#475569', fontSize: 12 }}
+                        />
+                        <PolarRadiusAxis angle={90} domain={[0, 10]} tick={{ fill: '#64748b' }} />
+                        <Radar 
+                          name="Avaliação" 
+                          dataKey="value" 
+                          stroke="#2563eb" 
+                          fill="#3b82f6" 
+                          fillOpacity={0.6} 
+                        />
+                      </RadarChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  <div className="mb-8">
+                    <label className="block text-lg font-semibold text-gray-800 mb-3">Avaliação Clínica</label>
+                    <textarea
+                      value={clinicalNotes}
+                      onChange={(e) => setClinicalNotes(e.target.value)}
+                      placeholder="Digite aqui sua avaliação clínica sobre o paciente, incluindo mecanismo predominante de dor, fatores contribuintes e recomendações de tratamento..."
+                      rows={8}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                    />
+                  </div>
+
+                  <div className="flex gap-4">
+                    <button
+                      onClick={goPrevious}
+                      className="flex items-center gap-2 px-6 py-3 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition-colors"
+                    >
+                      <ChevronLeft size={20} />
+                      Voltar
+                    </button>
+                    
+                    <button
+                      onClick={generatePDF}
+                      className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors"
+                    >
+                      <Download size={20} />
+                      Gerar PDF
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        ReactDOM.render(<PainAssessmentApp />, document.getElementById('root'));
+    </script>
+</body>
+</html>
